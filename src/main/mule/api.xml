@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+    <http:listener-config name="api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="api-config" raml="api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <sub-flow name="simulas-resposta-SAP" doc:id="0cd5f32a-3066-4d06-b45a-77fe0668f0be" >
+		<choice doc:name="Choice" doc:id="c4d7c4b1-ca38-48d2-aaf7-b4056952e68f" tracking:enable-default-events="true">
+			<when expression="#[message.attributes.headers.erro == null or not message.attributes.headers.erro]">
+				<ee:transform doc:name="Transform Message" doc:id="3570828f-30a3-45c0-924a-17d3794671c0">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+retorno:{
+	mensagem: "Cliente incluido com sucesso",
+	ClienteId: 1,
+	status: "Sucesso"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message" doc:id="20b11bfe-7ab9-42a0-923b-556af40ce7fe">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+retorno:{
+	mensagem: "Falha ao inserir cliente",
+	status: "Erro"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<validation:is-false doc:name="Is false" doc:id="35616172-1f6c-4e77-b02c-bd37b706b89a" message="Falha ao se comunicar com o SAP" expression="true" />
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<flow name="api-main">
+        <http:listener config-ref="api-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="api-console">
+        <http:listener config-ref="api-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" doc:id="643c18f9-1c68-423e-a0e2-915ad62f3fba">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="get:\clients:api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" doc:id="5bb30f1c-0a63-426f-9db0-85e8a1bb316c">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+[
+  {
+    id: 1,
+    name: "client 01",
+    email: "client01@email.com"
+  }, 
+  {
+    id: 2,
+    name: "client 02",
+    email: "client02@email.com"
+  }
+]]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="533681c0-9455-4bdb-8a31-a181f3c05f9f" event-name="GET:/clients (payload response)">
+			<tracking:meta-data key="BAPI" value="XYZ" />
+			<tracking:meta-data key="payload" value="#[payload]" />
+		</tracking:custom-event>
+    </flow>
+    <flow name="get:\clients\(id):api-config" tracking:enable-default-events="true">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="37e13cae-d00e-46c1-90e2-bfb47f8125ec">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" doc:id="e4ad55d9-ef99-41e8-a659-a8f7e611ee57">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  id: vars.id,
+  name: "client " ++ vars.id,
+  email: "client"++ vars.id ++ "email.com"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="b8b907b1-980f-4e98-8ee1-9ee3ddc4a815" event-name="GET:/clients/{id} (payload response)" >
+			<tracking:meta-data key="BAPI" value="XYZ" />
+			<tracking:meta-data key="payload" value="#[payload]" />
+			<tracking:meta-data key="ClienteId" value="#[vars.id]"/>
+		</tracking:custom-event>
+    </flow>
+    <flow name="post:\clients:api-config">
+        <logger level="INFO" message="#[payload]" />
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="caad7ff4-8707-4424-8a6d-bc37bfe1a3ee" event-name="POST:/clients (payload request)">
+			<tracking:meta-data key="payload" value="#[payload]" />
+		</tracking:custom-event>
+		<ee:transform doc:name="JSON to SAP(XML)" doc:id="dc3b04dd-a064-4006-9115-4d58cdc8f17c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+cliente :  {
+	name: payload.name,
+	email: payload.email
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="7bd0f133-730d-4642-91a8-57f5ececc842" event-name="Mensagem enviada para o SAP BAPI XPTO">
+			<tracking:meta-data key="BAPI" value="XPTO" />
+			<tracking:meta-data key="payload" value="#[payload]" />
+		</tracking:custom-event>
+		<flow-ref doc:name="Flow Reference" doc:id="f0b2dc84-dd9e-449b-940c-9922c25c1bcd" name="simulas-resposta-SAP" />
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="767c7bd3-bda9-4994-a963-d6b954303904" event-name="mensagem retornada do SAP BAPI XPTO">
+			<tracking:meta-data key="BAPI" value="XPTO" />
+			<tracking:meta-data key="payload" value="#[payload]" />
+		</tracking:custom-event>
+		<ee:transform doc:name="JSON Resposta" doc:id="c8d721c0-4749-46ec-b131-a22ce2ce1ce3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	mensagem: payload.retorno.mensagem
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<tracking:custom-event doc:name="Custom Business Event" doc:id="bf19a5b1-1eeb-4bce-907a-ba54762d50c3" event-name="Custom Business Event">
+			<tracking:meta-data key="payload" value="#[payload]" />
+			<tracking:meta-data key="statusCode" value="201" />
+			<tracking:meta-data key="ClienteId" value="1" />
+		</tracking:custom-event>
+		<ee:transform doc:name="Set 201" doc:id="08d2f4f5-fd9f-4867-9242-565d78dde4f1" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/java
+---
+201]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<error-handler>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="ea98c426-0e51-4d85-b0fd-4bb20c9b8afe">
+				<ee:transform doc:name="Transform Message" doc:id="8cee9caa-d39c-4c73-be7b-b6386311eab2" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	mensagem: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<tracking:custom-event doc:name="Custom Business Event" doc:id="0b7b52af-ca13-412c-9c50-e9a0a51208c8" event-name="payload response">
+					<tracking:meta-data key="payload" value="#[payload]" />
+					<tracking:meta-data key="statusCode" value="500" />
+				</tracking:custom-event>
+				<ee:transform doc:name="Set 500" doc:id="1173d2bb-5cc7-4a1a-81c2-f1443c6e9a6d" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/java
+---
+500]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+    </flow>
+</mule>

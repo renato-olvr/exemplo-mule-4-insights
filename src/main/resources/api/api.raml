@@ -1,0 +1,47 @@
+#%RAML 1.0
+version: v1
+baseUri: https://anypoint.mulesoft.com/mocking/api/v1/links/2b76f3fd-30ef-4696-a3d1-14cabb09fa0b/ # 
+title: exemplo insights api
+
+/clients:
+  post:
+    headers:
+      erro?: boolean
+    body:
+      application/json:
+        example: |
+          {
+            "name": "client 01",
+            "email": "client01@email.com"
+          }
+  get:
+    responses:
+      200:
+        body:
+          application/json:
+            example: |
+              [
+                {
+                  "id": 1,
+                  "name": "client 01",
+                  "email": "client01@email.com"
+                },
+                {
+                  "id": 2,
+                  "name": "client 02",
+                  "email": "client02@email.com"
+                }
+              ]
+  /{id}:
+    get:
+      responses:
+        200:
+          body:
+            application/json:
+              example: |
+                {
+                  "id": 1,
+                  "name": "client 01",
+                  "email": "client01@email.com"
+                }
+                
